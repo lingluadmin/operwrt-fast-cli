@@ -1,0 +1,9 @@
+#!/usr/bin/expect
+set timeout 20
+set ip [lindex $argv 0]
+spawn ssh root@$ip exit
+expect "Are you sure you want to continue connecting"
+sleep .1;
+send "yes\r";
+sleep .1;
+send "exit\r"

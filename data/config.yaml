@@ -1,0 +1,22 @@
+base:
+    zonename: 'Asia/Hong Kong'
+    timezone: 'CST-8'
+    router_password: 'sf123!@#'
+    lan_mask: '255.255.252.0'
+    wifi_ssid_2g: '1sunholding-network'
+    wifi_ssid_5g: '1sunholding-5g'
+    wifi_password: 'happycoding'
+    mode: 'router'
+ap-list:
+    fast-1:
+        channel_2g: '6'
+        channel_5g: '52'
+        disable_2g: '0'
+        disable_5g: '0'
+        lan_ip: '172.16.1.61'
+    fast-2:
+        channel_2g: '1'
+        channel_5g: '36'
+        disable_2g: '1'
+        disable_5g: '0'
+        lan_ip: '172.16.1.71'

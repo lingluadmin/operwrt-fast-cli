@@ -1,0 +1,3 @@
+router_password=hello
+# 目前 arch 支持 [ ar71xx | bcm53xx | brcm47xx | ramips_24kec ]
+router_archarch=ar71xx

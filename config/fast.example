@@ -1,0 +1,27 @@
+# ----
+# router_ip=192.168.1.1
+# mode=router
+# router_arch=ar71xx
+# router_password=12345688
+# 目前 arch 支持 [ ar71xx | bcm53xx | brcm47xx | ramips_24kec ]
+
+config fast_config common
+    option zonename 'Asia/Hong Kong'
+    option timezone 'CST-8'
+
+    option hostname 'OpenWrt-Maque'
+
+    option channel_2g '6'
+    option channel_5g '149'
+    option disable_2g '1'
+    option disable_5g '0'
+
+    option lan_ip '192.168.198.1'
+    option lan_mask '255.255.255.0'
+
+    option wifi_ssid_2g 'OpenWrt-Maque'
+    option wifi_ssid_5g 'OpenWrt-Maque-5G'
+    option wifi_password 'happycoding'
+
+    option wan_macaddr '04:a1:51:b7:92:01'
+    option lan_macaddr '04:a1:51:b7:92:02'

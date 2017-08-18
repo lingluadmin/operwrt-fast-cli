@@ -1,0 +1,59 @@
+
+config global
+	option global_server '2'
+
+config servers '1'
+	option local_port '1080'
+	option timeout '60'
+	option server '106.186.29.127'
+	option server_port '8181'
+	option password '123466'
+	option encrypt_method 'aes-128-cfb'
+	option auth_enable '0'
+	option alias 'jp-01'
+
+config servers '2'
+	option auth_enable '0'
+	option local_port '1080'
+	option timeout '60'
+	option server '103.192.176.231'
+	option server_port '8181'
+	option password '123466'
+	option encrypt_method 'aes-128-cfb'
+	option alias 'hk-21'
+
+config udp_forward
+	option tunnel_port '5300'
+	option tunnel_forward '8.8.4.4:53'
+	option tunnel_enable '1'
+
+config access_control
+	option lan_ac_mode '0'
+	option wan_bp_list '/etc/chinadns_chnroute.txt'
+	list wan_bp_ips '47.90.33.154'
+	list wan_bp_ips '47.90.87.23'
+	list wan_bp_ips '103.192.176.231'
+	list wan_bp_ips '106.186.29.127'
+	list wan_bp_ips '47.90.78.119'
+	list wan_bp_ips '47.91.139.150'
+
+config servers
+	option auth_enable '0'
+	option local_port '1080'
+	option timeout '60'
+	option server '47.90.87.23'
+	option server_port '8181'
+	option password '123466'
+	option encrypt_method 'aes-128-cfb'
+	option alias 'hk-01'
+
+config servers
+	option auth_enable '0'
+	option local_port '1080'
+	option timeout '60'
+	option alias 'hk-02'
+	option server '47.90.78.119'
+	option server_port '8181'
+	option password '123466'
+	option encrypt_method 'aes-128-cfb'
+

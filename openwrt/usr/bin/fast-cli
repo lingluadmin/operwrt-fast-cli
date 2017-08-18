@@ -1,0 +1,221 @@
+#!/bin/sh
+
+NAME=fast
+
+. $IPKG_INSTROOT/lib/functions.sh
+. $IPKG_INSTROOT/lib/functions/service.sh
+
+if [ ! $# -eq 2 ]; then
+    echo "usage: $0 update_config mode=[ap|router]"
+    exit 1
+fi
+mode=$2
+_run_cmd() {
+    t=`date`
+    echo "$t: $1"
+    eval $1
+}
+
+uci_get_by_name() {
+	local ret=$(uci get $NAME.$1.$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+uci_get_by_type() {
+	local ret=$(uci get $NAME.@$1[0].$2 2>/dev/null)
+	echo ${ret:=$3}
+}
+
+_disable_service() {
+    local service=$1
+    _run_cmd "/etc/init.d/$service start"
+    _run_cmd "/etc/init.d/$service stop"
+    _run_cmd "/etc/init.d/$service disable"
+}
+
+_enable_service() {
+    local service=$1
+    _run_cmd "/etc/init.d/$service enable"
+    _run_cmd "/etc/init.d/$service start"
+}
+
+_set_macaddr() {
+    local ifname=$1
+    local macaddr=$2
+    _run_cmd "ifconfig $ifname down && ifconfig $ifname hw ether $macaddr && ifconfig $ifname up"
+}
+
+update_service() {
+    if [ "$mode" = "ap" ]; then
+        _disable_service "odhcpd"
+        _disable_service "dnsmasq"
+        _disable_service "firewall"
+    else
+        _enable_service "odhcpd"
+        _enable_service "dnsmasq"
+        _enable_service "chinadns"
+        _enable_service "firewall"
+    fi
+}
+
+build_config() {
+    # ap or router
+    local noresolv=0
+    local lan_iframe=''
+
+    if [ "$mode" = "ap" ]; then
+        disable_dhcp=1
+        noresolv=1
+        lan_iframe='eth0.1 eth1'
+    else
+        disable_dhcp=0
+        noresolv=1
+        lan_iframe='eth0.1'
+    fi
+
+    local timezone=$(uci_get_by_name common timezone)
+    local zonename=$(uci_get_by_name common zonename)
+    local hostname=$(uci_get_by_name common hostname)
+
+    local channel_2g=$(uci_get_by_name common channel_2g)
+    local channel_5g=$(uci_get_by_name common channel_5g)
+
+    local disable_2g=$(uci_get_by_name common disable_2g)
+    local disable_5g=$(uci_get_by_name common disable_5g)
+
+    local wifi_ssid_2g=$(uci_get_by_name common wifi_ssid_2g)
+    local wifi_ssid_5g=$(uci_get_by_name common wifi_ssid_5g)
+    local wifi_password=$(uci_get_by_name common wifi_password)
+
+    local lan_ip=$(uci_get_by_name common lan_ip)
+    local lan_mask=$(uci_get_by_name common lan_mask)
+    local wan_macaddr=$(uci_get_by_name common wan_macaddr)
+    local lan_macaddr=$(uci_get_by_name common lan_macaddr)
+
+    # set macaddr
+    if [ "$wan_macaddr" ]; then
+        _run_cmd "uci set network.wan.macaddr='$wan_macaddr'"
+    fi
+
+    if [ "$lan_macaddr" ]; then
+        _run_cmd "uci set network.lan.macaddr='$lan_macaddr'"
+    fi
+
+    # update system config
+    _run_cmd "uci set system.@system[0].hostname='$hostname'"
+    _run_cmd "uci set system.@system[0].timezone='$timezone'"
+    _run_cmd "uci set system.@system[0].zonename='$zonename'"
+
+    # set up ChinaDNS only for router mode
+    if [ "$mode" = "router" ]; then
+        _run_cmd "uci set chinadns.@chinadns[0]=chinadns"
+        _run_cmd "uci set chinadns.@chinadns[0].enable='1'"
+        _run_cmd "uci set chinadns.@chinadns[0].bidirectional='0'"
+        _run_cmd "uci set chinadns.@chinadns[0].chnroute='/etc/chinadns_chnroute.txt'"
+        _run_cmd "uci set chinadns.@chinadns[0].port='5353'"
+        _run_cmd "uci set chinadns.@chinadns[0].server='114.114.114.114,8.8.8.8'"
+    fi
+
+    # set lan IP address and disable DHCP
+    _run_cmd "uci set network.lan.proto='static'"
+    _run_cmd "uci set network.lan.ipaddr='$lan_ip'"
+    _run_cmd "uci set network.lan.netmask='$lan_mask'"
+
+    # set up dhcp
+    _run_cmd "uci set dhcp.@dnsmasq[0]=dnsmasq"
+    _run_cmd "uci set dhcp.@dnsmasq[0]=dnsmasq"
+    _run_cmd "uci set dhcp.@dnsmasq[0].domainneeded='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].boguspriv='0'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].localise_queries='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].rebind_protection='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].rebind_localhost='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].local='/lan/'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].domain='lan'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].expandhosts='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].authoritative='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].readethers='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].leasefile='/tmp/dhcp.leases'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].localservice='1'"
+    _run_cmd "uci set dhcp.@dnsmasq[0].noresolv='$noresolv'"
+
+    # set DNS server to ChinaDNS
+    _run_cmd "uci delete dhcp.@dnsmasq[0].server"
+    _run_cmd "uci add_list dhcp.@dnsmasq[0].server='127.0.0.1#5353'"
+
+    # set disable flag for dhcp
+    _run_cmd "uci set dhcp.lan.ignore='$disable_dhcp'"
+    _run_cmd "uci set dhcp.lan.dhcpv6='disable'"
+    _run_cmd "uci set dhcp.wan.ignore='1'"
+
+    # set channel, ssid, password for 2.4 GHz wireless network
+    _run_cmd "uci set wireless.radio0=wifi-device"
+    _run_cmd "uci set wireless.radio0.disabled='$disable_2g'"
+    _run_cmd "uci set wireless.radio0.country='US'"
+    _run_cmd "uci set wireless.radio0.hwmode='11g'"
+    _run_cmd "uci set wireless.radio0.channel='$channel_2g'"
+
+    _run_cmd "uci set wireless.@wifi-iface[0]=wifi-iface"
+    _run_cmd "uci set wireless.@wifi-iface[0].device='radio0'"
+    _run_cmd "uci set wireless.@wifi-iface[0].network='lan'"
+    _run_cmd "uci set wireless.@wifi-iface[0].mode='ap'"
+    _run_cmd "uci set wireless.@wifi-iface[0].ssid='$wifi_ssid_2g'"
+    _run_cmd "uci set wireless.@wifi-iface[0].encryption='psk2'"
+
+    _run_cmd "uci set wireless.@wifi-iface[0].key='$wifi_password'"
+
+    # set disable flag for 2.4 GHz wireless network
+    _run_cmd "uci set wireless.@wifi-iface[0].disabled='$disable_2g'"
+
+    # set channel, ssid, password for 5 GHz wireless network
+    _run_cmd "uci set wireless.radio1=wifi-device"
+    _run_cmd "uci set wireless.radio1.disabled='$disable_5g'"
+    _run_cmd "uci set wireless.radio1.country='US'"
+    _run_cmd "uci set wireless.radio1.hwmode='11a'"
+    _run_cmd "uci set wireless.radio1.htmode='HT20'"
+    _run_cmd "uci set wireless.radio1.channel='$channel_5g'"
+
+    # set disable flag for 5 GHz wireless network
+    _run_cmd "uci set wireless.@wifi-iface[1].disabled='$disable_5g'"
+
+    _run_cmd "uci set wireless.@wifi-iface[1]=wifi-iface"
+    _run_cmd "uci set wireless.@wifi-iface[1].device='radio1'"
+    _run_cmd "uci set wireless.@wifi-iface[1].network='lan'"
+    _run_cmd "uci set wireless.@wifi-iface[1].mode='ap'"
+    _run_cmd "uci set wireless.@wifi-iface[1].ssid='$wifi_ssid_5g'"
+    _run_cmd "uci set wireless.@wifi-iface[1].encryption='psk2'"
+    _run_cmd "uci set wireless.@wifi-iface[1].key='$wifi_password'"
+    _run_cmd "uci set network.lan.ifname='$lan_iframe'"
+
+    _run_cmd "uci commit"
+
+    # set macaddr
+    if [ "$wan_macaddr" ]; then
+        _set_macaddr "eth1" "$wan_macaddr"
+    fi
+
+    if [ "$lan_macaddr" ]; then
+        _set_macaddr "br-lan" "$lan_macaddr"
+        _set_macaddr "eth0" "$lan_macaddr"
+        _set_macaddr "eth0.1" "$lan_macaddr"
+    fi
+}
+
+update_config() {
+    build_config
+    update_service
+    echo "update_config done for mode: $mode"
+}
+
+help() {
+	cat <<EOF
+Syntax: $initscript [command]
+
+Available commands:
+	update_config mode
+$EXTRA_HELP
+EOF
+}
+
+action=${1:-help}
+ALL_COMMANDS="update_config"
+list_contains ALL_COMMANDS "$action" || action=help
+$action "$@"
